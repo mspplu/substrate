@@ -153,7 +153,7 @@ mod tests {
 	use std::collections::HashMap;
 	use std::cell::RefCell;
 	use sp_core::H256;
-	use crate::exec::{Ext, StorageKey, ExecError, ExecReturnValue, STATUS_SUCCESS};
+	use crate::exec::{Ext, StorageKey, ExecError, ExecReturnValue, ReturnFlags};
 	use crate::gas::{Gas, GasMeter};
 	use crate::tests::{Test, Call};
 	use crate::wasm::prepare::prepare_contract;
@@ -251,7 +251,7 @@ mod tests {
 			Ok((
 				address,
 				ExecReturnValue {
-					status: STATUS_SUCCESS,
+					flags: ReturnFlags::empty(),
 					data: Vec::new(),
 				},
 			))
@@ -285,7 +285,7 @@ mod tests {
 			});
 			// Assume for now that it was just a plain transfer.
 			// TODO: Add tests for different call outcomes.
-			Ok(ExecReturnValue { status: STATUS_SUCCESS, data: Vec::new() })
+			Ok(ExecReturnValue { flags: ReturnFlags::empty(), data: Vec::new() })
 		}
 		fn terminate(
 			&mut self,
@@ -874,7 +874,7 @@ mod tests {
 			&mut GasMeter::new(GAS_LIMIT),
 		).unwrap();
 
-		assert_eq!(output, ExecReturnValue { status: STATUS_SUCCESS, data: [0x22; 32].to_vec() });
+		assert_eq!(output, ExecReturnValue { flags: ReturnFlags::empty(), data: [0x22; 32].to_vec() });
 	}
 
 	/// calls `ext_caller`, loads the address from the scratch buffer and
@@ -1229,7 +1229,7 @@ mod tests {
 			&mut GasMeter::new(GAS_LIMIT),
 		).unwrap();
 
-		assert_eq!(output, ExecReturnValue { status: STATUS_SUCCESS, data: vec![1, 2, 3, 4] });
+		assert_eq!(output, ExecReturnValue { flags: ReturnFlags::empty(), data: vec![1, 2, 3, 4] });
 	}
 
 	const CODE_TIMESTAMP_NOW: &str = r#"
@@ -1455,7 +1455,7 @@ mod tests {
 		assert_eq!(
 			output,
 			ExecReturnValue {
-				status: STATUS_SUCCESS,
+				flags: ReturnFlags::empty(),
 				data: hex!("000102030405060708090A0B0C0D0E0F000102030405060708090A0B0C0D0E0F").to_vec(),
 			},
 		);
@@ -1688,12 +1688,12 @@ mod tests {
 			&mut GasMeter::new(GAS_LIMIT),
 		).unwrap();
 
-		assert_eq!(output, ExecReturnValue { status: 0, data: hex!("445566778899").to_vec() });
+		assert_eq!(output, ExecReturnValue { flags: ReturnFlags::empty(), data: hex!("445566778899").to_vec() });
 		assert!(output.is_success());
 	}
 
 	#[test]
-	fn return_with_failure_status() {
+	fn return_with_revert_status() {
 		let output = execute(
 			CODE_RETURN_WITH_DATA,
 			hex!("112233445566778899").to_vec(),
@@ -1701,7 +1701,7 @@ mod tests {
 			&mut GasMeter::new(GAS_LIMIT),
 		).unwrap();
 
-		assert_eq!(output, ExecReturnValue { status: 17, data: hex!("5566778899").to_vec() });
+		assert_eq!(output, ExecReturnValue { flags: ReturnFlags::RevertStorage, data: hex!("5566778899").to_vec() });
 		assert!(!output.is_success());
 	}
 }

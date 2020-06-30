@@ -103,7 +103,7 @@
 
 		;; Check for special trap exit status.
 		(call $assert
-			(i32.eq (get_local $exit_code) (i32.const 0x0100))
+			(i32.eq (get_local $exit_code) (i32.const 0x1))
 		)
 
 		;; Check that balance has not changed.
@@ -218,7 +218,7 @@
 
 		;; Check for special trap exit status.
 		(call $assert
-			(i32.eq (get_local $exit_code) (i32.const 0x0100))
+			(i32.eq (get_local $exit_code) (i32.const 0x1))
 		)
 
 		;; Check that balance has not changed.

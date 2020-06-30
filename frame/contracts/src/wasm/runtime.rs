@@ -18,12 +18,14 @@
 
 use crate::{Schedule, Trait, CodeHash, BalanceOf};
 use crate::exec::{
-	Ext, ExecResult, ExecError, ExecReturnValue, StorageKey, TopicOf, STATUS_SUCCESS,
+	Ext, ExecResult, ExecError, ExecReturnValue, StorageKey, TopicOf, ReturnFlags,
 };
 use crate::gas::{Gas, GasMeter, Token, GasMeterResult};
+use crate::wasm::env_def::ConvertibleToWasm;
 use sp_sandbox;
+use parity_wasm::elements::ValueType;
 use frame_system;
-use sp_std::{prelude::*, convert::TryInto};
+use sp_std::prelude::*;
 use codec::{Decode, Encode};
 use sp_runtime::traits::{Bounded, SaturatedConversion};
 use sp_io::hashing::{
@@ -33,10 +35,42 @@ use sp_io::hashing::{
 	sha2_256,
 };
 
-/// The value returned from ext_call and ext_instantiate contract external functions if the call or
-/// instantiation traps. This value is chosen as if the execution does not trap, the return value
-/// will always be an 8-bit integer, so 0x0100 is the smallest value that could not be returned.
-const TRAP_RETURN_CODE: u32 = 0x0100;
+/// Every error that can be returned from a runtime API call.
+#[repr(u32)]
+enum ReturnCode {
+	/// API call successful.
+	Success = 0,
+	/// The called function trapped and has its state changes reverted.
+	/// In this case no output buffer is returned.
+	/// Can only be returned from `ext_call` and `ext_instantiate`.
+	CalleeTrapped = 1,
+	/// The called function ran to completion but decided to revert its state.
+	/// An output buffer is returned when one was supplied.
+	/// Can only be returned from `ext_call` and `ext_instantiate`.
+	CalleeReverted = 2,
+}
+
+impl ConvertibleToWasm for ReturnCode {
+	type NativeType = Self;
+	const VALUE_TYPE: ValueType = ValueType::I32;
+	fn to_typed_value(self) -> sp_sandbox::Value {
+		sp_sandbox::Value::I32(self as i32)
+	}
+	fn from_typed_value(_: sp_sandbox::Value) -> Option<Self> {
+		// We will only ever send these values to wasm but never receive them
+		None
+	}
+}
+
+impl From<ExecReturnValue> for ReturnCode {
+	fn from(from: ExecReturnValue) -> ReturnCode {
+		if from.flags.contains(ReturnFlags::RevertStorage) {
+			Self::CalleeReverted
+		} else {
+			Self::Success
+		}
+	}
+}
 
 /// Enumerates all possible *special* trap conditions.
 ///
@@ -90,23 +124,24 @@ pub(crate) fn to_execution_result<E: Ext>(
 ) -> ExecResult {
 	match runtime.special_trap {
 		// The trap was the result of the execution `return` host function.
-		Some(SpecialTrap::Return(status, data)) => {
-			let status = (status & 0xFF).try_into()
-				.expect("exit_code is masked into the range of a u8; qed");
+		Some(SpecialTrap::Return(flags, data)) => {
+			let flags = ReturnFlags::from_bits(flags).ok_or_else(|| ExecError {
+				reason: "used reserved bit in return flags".into(),
+			})?;
 			return Ok(ExecReturnValue {
-				status,
+				flags,
 				data,
 			})
 		},
 		Some(SpecialTrap::Termination) => {
 			return Ok(ExecReturnValue {
-				status: STATUS_SUCCESS,
+				flags: ReturnFlags::empty(),
 				data: Vec::new(),
 			})
 		},
 		Some(SpecialTrap::Restoration) => {
 			return Ok(ExecReturnValue {
-				status: STATUS_SUCCESS,
+				flags: ReturnFlags::empty(),
 				data: Vec::new(),
 			})
 		}
@@ -127,7 +162,7 @@ pub(crate) fn to_execution_result<E: Ext>(
 	match sandbox_result {
 		// No traps were generated. Proceed normally.
 		Ok(_) => {
-			Ok(ExecReturnValue { status: STATUS_SUCCESS, data: Vec::new() })
+			Ok(ExecReturnValue { flags: ReturnFlags::empty(), data: Vec::new() })
 		}
 		// `Error::Module` is returned only if instantiation or linking failed (i.e.
 		// wasm binary tried to import a function that is not provided by the host).
@@ -490,7 +525,7 @@ define_env!(Env, <E: Ext>,
 		input_data_len: u32,
 		output_ptr: u32,
 		output_len_ptr: u32
-	) -> u32 => {
+	) -> ReturnCode => {
 		let callee: <<E as Ext>::T as frame_system::Trait>::AccountId =
 			read_sandbox_memory_as(ctx, callee_ptr, callee_len)?;
 		let value: BalanceOf<<E as Ext>::T> = read_sandbox_memory_as(ctx, value_ptr, value_len)?;
@@ -521,10 +556,10 @@ define_env!(Env, <E: Ext>,
 		match call_outcome {
 			Ok(output) => {
 				write_sandbox_output(ctx, output_ptr, output_len_ptr, &output.data)?;
-				Ok(output.status.into())
+				Ok(output.into())
 			},
 			Err(_) => {
-				Ok(TRAP_RETURN_CODE)
+				Ok(ReturnCode::CalleeTrapped)
 			},
 		}
 	},
@@ -577,7 +612,7 @@ define_env!(Env, <E: Ext>,
 		address_len_ptr: u32,
 		output_ptr: u32,
 		output_len_ptr: u32
-	) -> u32 => {
+	) -> ReturnCode => {
 		let code_hash: CodeHash<<E as Ext>::T> =
 			read_sandbox_memory_as(ctx, code_hash_ptr, code_hash_len)?;
 		let value: BalanceOf<<E as Ext>::T> = read_sandbox_memory_as(ctx, value_ptr, value_len)?;
@@ -606,14 +641,14 @@ define_env!(Env, <E: Ext>,
 		});
 		match instantiate_outcome {
 			Ok((address, output)) => {
-				if output.is_success() {
+				if !output.flags.contains(ReturnFlags::RevertStorage) {
 					write_sandbox_output(ctx, address_ptr, address_len_ptr, &address.encode())?;
 				}
 				write_sandbox_output(ctx, output_ptr, output_len_ptr, &output.data)?;
-				Ok(output.status.into())
+				Ok(output.into())
 			},
 			Err(_) => {
-				Ok(TRAP_RETURN_CODE)
+				Ok(ReturnCode::CalleeTrapped)
 			},
 		}
 	},
