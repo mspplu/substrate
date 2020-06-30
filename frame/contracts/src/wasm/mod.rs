@@ -1659,9 +1659,6 @@ mod tests {
 
 	;; Call reads the first 4 bytes (LE) as the exit status and returns the rest as output data.
 	(func $call (export "call") (result i32)
-		(local $buf_size i32)
-		(local $exit_status i32)
-
 		;; Copy input data this contract memory.
 		(call $ext_input
 			(i32.const 0)	;; Pointer where to store input
@@ -1683,7 +1680,7 @@ mod tests {
 	fn ext_return_with_success_status() {
 		let output = execute(
 			CODE_RETURN_WITH_DATA,
-			hex!("00112233445566778899").to_vec(),
+			hex!("00000000445566778899").to_vec(),
 			MockExt::default(),
 			&mut GasMeter::new(GAS_LIMIT),
 		).unwrap();
@@ -1696,7 +1693,7 @@ mod tests {
 	fn return_with_revert_status() {
 		let output = execute(
 			CODE_RETURN_WITH_DATA,
-			hex!("112233445566778899").to_vec(),
+			hex!("010000005566778899").to_vec(),
 			MockExt::default(),
 			&mut GasMeter::new(GAS_LIMIT),
 		).unwrap();
