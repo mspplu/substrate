@@ -19,9 +19,9 @@
 		(call $ext_input (i32.const 0) (i32.const 128))
 
 		;; Copy all but the first 4 bytes of the input data as the output data.
-		;; Use the first 4 bytes as exit status
+		;; Use the first byte as exit status
 		(call $ext_return
-			(i32.load (i32.const 0))	;; Exit status
+			(i32.load8_u (i32.const 0))	;; Exit status
 			(i32.const 4)	;; Pointer to the data to return.
 			(i32.sub		;; Count of bytes to copy.
 				(i32.load (i32.const 128))
