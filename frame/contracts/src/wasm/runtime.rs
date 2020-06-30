@@ -64,7 +64,7 @@ impl ConvertibleToWasm for ReturnCode {
 
 impl From<ExecReturnValue> for ReturnCode {
 	fn from(from: ExecReturnValue) -> ReturnCode {
-		if from.flags.contains(ReturnFlags::RevertStorage) {
+		if from.flags.contains(ReturnFlags::REVERT) {
 			Self::CalleeReverted
 		} else {
 			Self::Success
@@ -641,7 +641,7 @@ define_env!(Env, <E: Ext>,
 		});
 		match instantiate_outcome {
 			Ok((address, output)) => {
-				if !output.flags.contains(ReturnFlags::RevertStorage) {
+				if !output.flags.contains(ReturnFlags::REVERT) {
 					write_sandbox_output(ctx, address_ptr, address_len_ptr, &address.encode())?;
 				}
 				write_sandbox_output(ctx, output_ptr, output_len_ptr, &output.data)?;

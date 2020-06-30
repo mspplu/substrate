@@ -28,7 +28,6 @@ use frame_support::{
 	traits::{ExistenceRequirement, Currency, Time, Randomness},
 	weights::Weight,
 };
-use codec::Encode;
 
 pub type AccountIdOf<T> = <T as frame_system::Trait>::AccountId;
 pub type MomentOf<T> = <<T as Trait>::Time as Time>::Moment;
@@ -40,23 +39,26 @@ pub type StorageKey = [u8; 32];
 pub type TopicOf<T> = <T as frame_system::Trait>::Hash;
 
 bitflags! {
-	#[derive(Encode)]
+	/// Flags used by a contract to customize exit behaviour.
 	pub struct ReturnFlags: u32 {
-		const RevertStorage = 0x00000001;
+		/// If this bit is set all changes made by the contract exection are rolled back.
+		const REVERT = 0x0000_0001;
 	}
 }
 
 /// Output of a contract call or instantiation which ran to completion.
 #[cfg_attr(test, derive(PartialEq, Eq, Debug))]
 pub struct ExecReturnValue {
+	/// Flags passed along by `ext_return`. Empty when `ext_return` was never called.
 	pub flags: ReturnFlags,
+	/// Buffer passed along by `ext_return`. Empty when `ext_return` was never called.
 	pub data: Vec<u8>,
 }
 
 impl ExecReturnValue {
-	/// We take the absense of a revert flag as success
+	/// We understand the absense of a revert flag as success.
 	pub fn is_success(&self) -> bool {
-		!self.flags.contains(ReturnFlags::RevertStorage)
+		!self.flags.contains(ReturnFlags::REVERT)
 	}
 }
 
@@ -504,7 +506,7 @@ where
 		frame_support::storage::with_transaction(|| {
 			let output = func(&mut nested);
 			match output {
-				Ok(ref rv) if !rv.flags.contains(ReturnFlags::RevertStorage) => Commit(output),
+				Ok(ref rv) if !rv.flags.contains(ReturnFlags::REVERT) => Commit(output),
 				_ => Rollback(output),
 			}
 		})
@@ -1082,7 +1084,7 @@ mod tests {
 		let vm = MockVm::new();
 		let mut loader = MockLoader::empty();
 		let return_ch = loader.insert(
-			|_| Ok(ExecReturnValue { flags: ReturnFlags::RevertStorage, data: Vec::new() })
+			|_| Ok(ExecReturnValue { flags: ReturnFlags::REVERT, data: Vec::new() })
 		);
 
 		ExtBuilder::default().build().execute_with(|| {
@@ -1264,7 +1266,7 @@ mod tests {
 		let vm = MockVm::new();
 		let mut loader = MockLoader::empty();
 		let return_ch = loader.insert(
-			|_| Ok(ExecReturnValue { flags: ReturnFlags::RevertStorage, data: vec![1, 2, 3, 4] })
+			|_| Ok(ExecReturnValue { flags: ReturnFlags::REVERT, data: vec![1, 2, 3, 4] })
 		);
 
 		ExtBuilder::default().build().execute_with(|| {
@@ -1534,7 +1536,7 @@ mod tests {
 
 		let mut loader = MockLoader::empty();
 		let dummy_ch = loader.insert(
-			|_| Ok(ExecReturnValue { flags: ReturnFlags::RevertStorage, data: vec![70, 65, 73, 76] })
+			|_| Ok(ExecReturnValue { flags: ReturnFlags::REVERT, data: vec![70, 65, 73, 76] })
 		);
 
 		ExtBuilder::default().existential_deposit(15).build().execute_with(|| {
