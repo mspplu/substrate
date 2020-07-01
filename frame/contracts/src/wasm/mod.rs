@@ -511,16 +511,14 @@ mod tests {
 	;;    value_ptr: u32,
 	;;    value_len: u32,
 	;;) -> u32
-	(import "env" "ext_transfer" (func $ext_transfer (param i32 i32 i32 i32) (result i32)))
+	(import "env" "ext_transfer" (func $ext_transfer (param i32 i32 i32 i32)))
 	(import "env" "memory" (memory 1 1))
 	(func (export "call")
-		(drop
-			(call $ext_transfer
-				(i32.const 4)  ;; Pointer to "account" address.
-				(i32.const 8)  ;; Length of "account" address.
-				(i32.const 12) ;; Pointer to the buffer with value to transfer
-				(i32.const 8)  ;; Length of the buffer with value to transfer.
-			)
+		(call $ext_transfer
+			(i32.const 4)  ;; Pointer to "account" address.
+			(i32.const 8)  ;; Length of "account" address.
+			(i32.const 12) ;; Pointer to the buffer with value to transfer
+			(i32.const 8)  ;; Length of the buffer with value to transfer.
 		)
 	)
 	(func (export "deploy"))
@@ -551,7 +549,7 @@ mod tests {
 				to: 7,
 				value: 153,
 				data: Vec::new(),
-				gas_left: 9989000000,
+				gas_left: 9989500000,
 			}]
 		);
 	}

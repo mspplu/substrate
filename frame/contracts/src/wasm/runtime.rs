@@ -50,8 +50,6 @@ pub enum ReturnCode {
 	CalleeReverted = 2,
 	/// The passed key does not exist in storage.
 	KeyNotFound = 3,
-	/// Failed to transfer balance to destination.
-	TransferFailed = 4,
 }
 
 impl ConvertibleToWasm for ReturnCode {
@@ -482,16 +480,13 @@ define_env!(Env, <E: Ext>,
 		account_len: u32,
 		value_ptr: u32,
 		value_len: u32
-	) -> ReturnCode => {
+	) => {
 		let callee: <<E as Ext>::T as frame_system::Trait>::AccountId =
 			read_sandbox_memory_as(ctx, account_ptr, account_len)?;
 		let value: BalanceOf<<E as Ext>::T> =
 			read_sandbox_memory_as(ctx, value_ptr, value_len)?;
 
-		match ctx.ext.transfer(&callee, value, ctx.gas_meter) {
-			Ok(_) => Ok(ReturnCode::Success),
-			Err(_) => Ok(ReturnCode::TransferFailed),
-		}
+		ctx.ext.transfer(&callee, value, ctx.gas_meter).map_err(|_| sp_sandbox::HostError)
 	},
 
 	// Make a call to another contract.
