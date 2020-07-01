@@ -37,7 +37,7 @@ use sp_io::hashing::{
 
 /// Every error that can be returned from a runtime API call.
 #[repr(u32)]
-enum ReturnCode {
+pub enum ReturnCode {
 	/// API call successful.
 	Success = 0,
 	/// The called function trapped and has its state changes reverted.
@@ -50,6 +50,8 @@ enum ReturnCode {
 	CalleeReverted = 2,
 	/// The passed key does not exist in storage.
 	KeyNotFound = 3,
+	/// Failed to transfer balance to destination.
+	TransferFailed = 4,
 }
 
 impl ConvertibleToWasm for ReturnCode {
@@ -480,15 +482,15 @@ define_env!(Env, <E: Ext>,
 		account_len: u32,
 		value_ptr: u32,
 		value_len: u32
-	) -> u32 => {
+	) -> ReturnCode => {
 		let callee: <<E as Ext>::T as frame_system::Trait>::AccountId =
 			read_sandbox_memory_as(ctx, account_ptr, account_len)?;
 		let value: BalanceOf<<E as Ext>::T> =
 			read_sandbox_memory_as(ctx, value_ptr, value_len)?;
 
 		match ctx.ext.transfer(&callee, value, ctx.gas_meter) {
-			Ok(_) => Ok(0),
-			Err(_) => Ok(1),
+			Ok(_) => Ok(ReturnCode::Success),
+			Err(_) => Ok(ReturnCode::TransferFailed),
 		}
 	},
 
