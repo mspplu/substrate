@@ -9,12 +9,12 @@
 	(data (i32.const 128) "\80")
 
 	;; Deploy routine is the same as call.
-	(func (export "deploy") (result i32)
+	(func (export "deploy")
 		(call $call)
 	)
 
 	;; Call reads the first 4 bytes (LE) as the exit status and returns the rest as output data.
-	(func $call (export "call") (result i32)
+	(func $call (export "call")
 		;; Copy input into this contracts memory.
 		(call $ext_input (i32.const 0) (i32.const 128))
 
