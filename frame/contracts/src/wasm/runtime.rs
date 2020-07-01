@@ -48,6 +48,8 @@ enum ReturnCode {
 	/// An output buffer is returned when one was supplied.
 	/// Can only be returned from `ext_call` and `ext_instantiate`.
 	CalleeReverted = 2,
+	/// The passed key does not exist in storage.
+	KeyNotFound = 3,
 }
 
 impl ConvertibleToWasm for ReturnCode {
@@ -449,14 +451,14 @@ define_env!(Env, <E: Ext>,
 	//
 	// - key_ptr: pointer into the linear memory where the key
 	//   of the requested value is placed.
-	ext_get_storage(ctx, key_ptr: u32, out_ptr: u32, out_len_ptr: u32) -> u32 => {
+	ext_get_storage(ctx, key_ptr: u32, out_ptr: u32, out_len_ptr: u32) -> ReturnCode => {
 		let mut key: StorageKey = [0; 32];
 		read_sandbox_memory_into_buf(ctx, key_ptr, &mut key)?;
 		if let Some(value) = ctx.ext.get_storage(&key) {
 			write_sandbox_output(ctx, out_ptr, out_len_ptr, &value)?;
-			Ok(0)
+			Ok(ReturnCode::Success)
 		} else {
-			Ok(1)
+			Ok(ReturnCode::KeyNotFound)
 		}
 	},
 
